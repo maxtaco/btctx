@@ -119,11 +119,11 @@ class Main
     await PrevTx.parse args["prev-tx"], esc defer data.prev_tx
     err = null
     data.prev_addr = args["prev-addr"]
-    if isNaN(parseInt((data.fee = args.fee)))
+    if isNaN(data.fee = parseInt(args.fee))
       err = new Error "need a fee in *dollars* via --fee"
-    else if isNaN(parseInt(data.approx_btc_price = args["approx-btc-price"]))
+    else if isNaN(data.approx_btc_price = parseInt(args["approx-btc-price"]))
       err = new Error "need a BTC price in USD/BTC via --approx-btc-price"
-    else if isNaN(parseInt(data.approx_value = args["approx-value"]))
+    else if isNaN(data.approx_value = parseInt(args["approx-value"]))
       err = new Error "need an approximate value of this transaction in USD via --approx-value"
     cb err, data
 
