@@ -3,4 +3,4 @@ iced btctx.iced \
 	--send-to 1BpJ5vHNVsxbxufCce8gQtkEYsTdAAfjQd:500 \
 	--send-to 1LPWQbqPYAtvuGij8W2KYoxNkUABgrDfkF:500 \
 	--prev-addr 1KgUyTokuc24GAfeymeG87dZmKbY8e9Vjy \
-	--fee 1.00 --btc-price 7300 --approx-value 5
+	--fee 1.00 --approx-btc-price 7300 --approx-value 5
