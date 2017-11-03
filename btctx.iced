@@ -107,7 +107,7 @@ class Main
     if output.addr isnt data.prev_addr
       err = new Error "got different previous address: #{output.addr}"
     else
-      data.budget = new BTCAmount { satoshi : output.value, price : data.real_btc_price }
+      data.budget = new BTCAmount { satoshi : output.value, price : data.btc_price }
       diff = data.budget.dollars() / data.approx_value
       if diff < .8 or diff > 1.2
         err = new Error "wrong approximate value for transaction; actual was: #{data.budget.toString()}"
@@ -122,11 +122,12 @@ class Main
   check_bitcoin_price : ({data}, cb) ->
     esc = make_esc cb, "check_bitcoin_price"
     await @req { uri : "https://blockchain.info/ticker" }, esc defer body
-    data.real_btc_price = body.USD.last
-    diff = data.real_btc_price / data.btc_price
+    approx_price = data.btc_price
+    data.btc_price = body.USD.last
+    diff = data.btc_price / approx_price
     err = null
     if diff < .8 or diff > 1.2
-      err = new Error "wrong approximate BTC price: #{data.btc_price} v #{data.real_btc_price}"
+      err = new Error "wrong approximate BTC price: #{approx_price} v #{data.btc_price}"
     cb err
 
   make_new_transaction : (opts, cb) ->
