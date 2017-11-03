@@ -10,7 +10,15 @@ class BTCAmount
   constructor : ( {@satoshi, @price}) ->
   btc : () -> @satoshi / (100*1000*1000)
   dollars : () -> @price * @btc()
-  toString : () -> "$#{@dollars()} (#{@btc()}BTC)"
+  toString : () -> "$#{@dollars()} (฿#{@btc()})"
+
+  @from_dollars : ({amt, price}) ->
+    new BTCAmount { price, satoshi : (amt/price) * 100 * 1000 * 1000 }
+
+  sub : (y) -> return new BTCAmount { satoshi : (@satoshi - y.satoshi), @price }
+  to_satoshi : () -> @satoshi
+  per_mille : (div) -> return new BTCAmount { satoshi : Math.floor(@satoshi*div/1000), @price }
+  clone : () -> new BTCAmount { @satoshi, @price }
 
 class Data
 
@@ -140,17 +148,29 @@ class Main
       err = new Error "wrong approximate BTC price: #{approx_price} v #{data.btc_price}"
     cb err
 
-  make_new_transaction : (opts, cb) ->
-    cb null
-
-  verify_change : (opts, cb) ->
-    cb null
-
-  verify_fee : (opts, cb) ->
-    cb null
-
-  output : (opts, cb) ->
-    cb null
+  output : ({data}, cb) ->
+    tx = new bitcoin.TransactionBuilder()
+    tx.addInput(data.prev_tx.addr, data.prev_tx.index)
+    def_per_mille = 1000 / data.send_to_list.length
+    gross = data.budget
+    fee = BTCAmount.from_dollars { amt: data.fee, price: data.btc_price }
+    console.log "Fee: #{fee.toString()}"
+    net = data.budget.sub fee
+    rem = net.clone()
+    for s in data.send_to_list
+      amt = net.per_mille(s.per_mille or def_per_mille)
+      console.log " -> To #{s.addr}: #{amt.toString()}"
+      tx.addOutput(s.addr, amt.to_satoshi())
+      rem = rem.sub amt
+    console.log "Rem: #{rem.toString()}"
+    tx.sign 0, data.priv_key
+    console.log tx.build().toHex()
+    err = null
+    if (s = rem.to_satoshi()) < 0
+      err = new Error "no money left in this transaction"
+    else if rem.dollars() > .01
+      err = new Error "left more than a penny"
+    cb err
 
   run : (argv, cb) ->
     esc = make_esc cb, "run"
@@ -159,9 +179,6 @@ class Main
     await @check_prev_transaction {data}, esc defer()
     await @prompt_for_private_key {data}, esc defer()
     await @check_private_public_match {data}, esc defer()
-    await @make_new_transaction {data}, esc defer()
-    await @verify_change {data}, esc defer()
-    await @verify_fee {data}, esc defer()
     await @output {data}, esc defer()
     cb null
 
