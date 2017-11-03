@@ -229,7 +229,9 @@ class Main
       rem = rem.sub amt
     console.log "Rem: #{rem.toString()}"
     tx.sign 0, data.priv_key
-    console.log tx.build().toHex()
+    tx_hex = tx.build().toHex()
+    console.log "Fee in satoshi/byte: #{fee.to_satoshi()/(tx_hex.length/2)}"
+    console.log tx_hex
     err = null
     if (s = rem.to_satoshi()) < 0
       err = new Error "no money left in this transaction"
