@@ -2,6 +2,8 @@
 minimist = require 'minimist'
 {make_esc} = require 'iced-error'
 request = require 'request'
+read = require 'read'
+bitcoin = require 'bitcoinjs-lib'
 
 class BTCAmount
 
@@ -113,8 +115,14 @@ class Main
         err = new Error "wrong approximate value for transaction; actual was: #{data.budget.toString()}"
     cb err
 
-  prompt_for_private_key : (opts, cb) ->
-    cb null
+  prompt_for_private_key : ({data}, cb) ->
+    esc = make_esc cb, "prompt_for_private_key"
+    await read { prompt : "private key> "}, esc defer wif
+    try
+      data.priv_key = bitcoin.ECPair.fromWIF wif
+    catch e
+      err = new Error "failed to import private key #{wif}: #{e.toString()}"
+    cb err
 
   check_private_public_match : (opts, cb) ->
     cb null
