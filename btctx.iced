@@ -1,6 +1,7 @@
 
 minimist = require 'minimist'
 {make_esc} = require 'iced-error'
+request = require 'request'
 
 class Data
 
@@ -33,6 +34,10 @@ class PrevTx
 class Main
 
   constructor : () ->
+
+  req : (uri, cb) ->
+    await request { uri, json : true}, defer err, res
+    cb err, res
 
   parse_sendto : ({arg}, cb) ->
     esc = make_esc cb, "parse_sendto"
@@ -84,6 +89,9 @@ class Main
     cb err, data
 
   check_prev_transaction : (opts, cb) ->
+    esc = make_esc cb, "check_prev_transaction"
+    await @req { uri : "https://blockchain.info/rawtx/#{data.prev_tx}" }, esc defer body
+    console.log body
     cb null
 
   prompt_for_private_key : (opts, cb) ->
