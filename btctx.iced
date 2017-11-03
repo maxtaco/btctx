@@ -59,6 +59,22 @@ class Main
       err = new Error "bad JSON request for #{uri}"
     cb err, ret
 
+  # One the command line, you can either do this:
+  #
+  #   --send-to 1LLmEMhqHP264Qqpv83Sf3s9hhSicJXtXK,1PUyf5STtMWNeFjvhbJz648SYume9tBkMf
+  #
+  # Or this:
+  #   --send-to 1LLmEMhqHP264Qqpv83Sf3s9hhSicJXtXK --send-to 1PUyf5STtMWNeFjvhbJz648SYume9tBkMf
+  #
+  # And they mean the same thing. This will split the output across those two different addresses.
+  # If you want an unequal split, you can do this:
+  #
+  #   --send-to 1LLmEMhqHP264Qqpv83Sf3s9hhSicJXtXK:400 --send-to 1PUyf5STtMWNeFjvhbJz648SYume9tBkMf:600
+  #
+  # Which will put 40% into the first wallet and 60% into the second.  By default, it's an
+  # even split, but if you specify PerMilles (rather than PerCents), then they must
+  # add up to 1000.  See
+  #
   parse_sendto : ({arg}, cb) ->
     esc = make_esc cb, "parse_sendto"
     v = out = err = null
@@ -76,7 +92,8 @@ class Main
           out.push x
     cb null, out
 
-  santify_check_sendto_list : ({send_to_list}, cb) ->
+  # See the above description in parse_sendto
+  sanity_check_sendto_list : ({send_to_list}, cb) ->
     err = null
     tot = 0
     seen = {}
@@ -98,16 +115,16 @@ class Main
       if not args[n]?
         return cb new Error "missing needed argument: --#{n}"
     await @parse_sendto { arg : args["send-to"] }, esc defer data.send_to_list
-    await @santify_check_sendto_list { send_to_list : data.send_to_list }, esc defer()
+    await @sanity_check_sendto_list { send_to_list : data.send_to_list }, esc defer()
     await PrevTx.parse args["prev-tx"], esc defer data.prev_tx
     err = null
     data.prev_addr = args["prev-addr"]
     if isNaN(parseInt((data.fee = args.fee)))
-      err = new Error "need a fee in satoshi via --fee"
+      err = new Error "need a fee in *dollars* via --fee"
     else if isNaN(parseInt(data.approx_btc_price = args["approx-btc-price"]))
-      err = new Error "need a BTC price via --approx-btc-price"
+      err = new Error "need a BTC price in USD/BTC via --approx-btc-price"
     else if isNaN(parseInt(data.approx_value = args["approx-value"]))
-      err = new Error "need an approximate value via --approx-value"
+      err = new Error "need an approximate value of this transaction in USD via --approx-value"
     cb err, data
 
   check_prev_transaction : ({data}, cb) ->

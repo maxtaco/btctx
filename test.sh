@@ -1,5 +1,5 @@
 iced btctx.iced \
-	--prev-tx 36a7774551a08a07f89f24bf4542b1817ef600d470998518a07274fd77301199:0 \
-	--send-to 17MSZVRqSrWfwVq5n7jkcjf9dkePwTkRBM \
-	--prev-addr 1KgUyTokuc24GAfeymeG87dZmKbY8e9Vjy \
+	--prev-tx fa6ba761df4b57bf323f5edec522a605a4fcebf300468af5d86f113f6a355adc:0 \
+	--prev-addr 17MSZVRqSrWfwVq5n7jkcjf9dkePwTkRBM \
+	--send-to 1LLmEMhqHP264Qqpv83Sf3s9hhSicJXtXK \
 	--fee 3 --approx-btc-price 7300 --approx-value 30
