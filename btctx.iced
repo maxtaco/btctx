@@ -3,6 +3,13 @@ minimist = require 'minimist'
 {make_esc} = require 'iced-error'
 request = require 'request'
 
+class BTCAmount
+
+  constructor : ( {@satoshi, @price}) ->
+  btc : () -> @satoshi / (100*1000*1000)
+  dollars : () -> @price * @btc()
+  toString : () -> "$#{@dollars()} (#{@btc()}BTC)"
+
 class Data
 
   constructor : () ->
@@ -35,9 +42,12 @@ class Main
 
   constructor : () ->
 
-  req : (uri, cb) ->
+  req : ({uri}, cb) ->
     await request { uri, json : true}, defer err, res
-    cb err, res
+    ret = null
+    if not (ret = res.body)?
+      err = new Error "bad JSON request for #{uri}"
+    cb err, ret
 
   parse_sendto : ({arg}, cb) ->
     esc = make_esc cb, "parse_sendto"
@@ -73,7 +83,7 @@ class Main
     esc = make_esc cb, "parse_args"
     data = new Data
     args = minimist argv, { string : [ "send-to", "prev-tx", "prev-addr" ] }
-    needed = [ "send-to", "prev-tx", "prev-addr", "fee", "btc-price"]
+    needed = [ "send-to", "prev-tx", "prev-addr", "fee", "btc-price", "approx-value" ]
     for n in needed
       if not args[n]?
         return cb new Error "missing needed argument: --#{n}"
@@ -86,19 +96,38 @@ class Main
       err = new Error "need a fee in satoshi via --fee"
     else if isNaN(parseInt(data.btc_price = args["btc-price"]))
       err = new Error "need a BTC price via --btc-price"
+    else if isNaN(parseInt(data.approx_value = args["approx-value"]))
+      err = new Error "need an approximate value via --approx-value"
     cb err, data
 
-  check_prev_transaction : (opts, cb) ->
+  check_prev_transaction : ({data}, cb) ->
     esc = make_esc cb, "check_prev_transaction"
-    await @req { uri : "https://blockchain.info/rawtx/#{data.prev_tx}" }, esc defer body
-    console.log body
-    cb null
+    await @req { uri : "https://blockchain.info/rawtx/#{data.prev_tx.addr}" }, esc defer body
+    output = body.out[data.prev_tx.index]
+    if output.addr isnt data.prev_addr
+      err = new Error "got different previous address: #{output.addr}"
+    else
+      data.budget = new BTCAmount { satoshi : output.value, price : data.real_btc_price }
+      diff = data.budget.dollars() / data.approx_value
+      if diff < .8 or diff > 1.2
+        err = new Error "wrong approximate value for transaction; actual was: #{data.budget.toString()}"
+    cb err
 
   prompt_for_private_key : (opts, cb) ->
     cb null
 
   check_private_public_match : (opts, cb) ->
     cb null
+
+  check_bitcoin_price : ({data}, cb) ->
+    esc = make_esc cb, "check_bitcoin_price"
+    await @req { uri : "https://blockchain.info/ticker" }, esc defer body
+    data.real_btc_price = body.USD.last
+    diff = data.real_btc_price / data.btc_price
+    err = null
+    if diff < .8 or diff > 1.2
+      err = new Error "wrong approximate BTC price: #{data.btc_price} v #{data.real_btc_price}"
+    cb err
 
   make_new_transaction : (opts, cb) ->
     cb null
@@ -115,6 +144,7 @@ class Main
   run : (argv, cb) ->
     esc = make_esc cb, "run"
     await @parse_args {argv}, esc defer data
+    await @check_bitcoin_price { data}, esc defer()
     await @check_prev_transaction {data}, esc defer()
     await @prompt_for_private_key {data}, esc defer()
     await @check_private_public_match {data}, esc defer()
