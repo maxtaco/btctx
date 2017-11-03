@@ -1,0 +1,26 @@
+{
+  "name": "btctx",
+  "version": "1.0.0",
+  "description": "send bitcoin from one wallet to another",
+  "main": "bin/main.js",
+  "dependencies": {
+    "bitcoinjs-lib": "^3.3.0",
+    "iced-coffee-script": "^108.0.11",
+    "iced-error": "0.0.12",
+    "iced-utils": "^0.1.26",
+    "minimist": "^1.2.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "keybase://private/max/btctx"
+  },
+  "keywords": [
+    "btc"
+  ],
+  "author": "Max Krohn",
+  "license": "ISC"
+}
