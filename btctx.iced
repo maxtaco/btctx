@@ -83,7 +83,7 @@ class Main
     esc = make_esc cb, "parse_args"
     data = new Data
     args = minimist argv, { string : [ "send-to", "prev-tx", "prev-addr" ] }
-    needed = [ "send-to", "prev-tx", "prev-addr", "fee", "btc-price", "approx-value" ]
+    needed = [ "send-to", "prev-tx", "prev-addr", "fee", "approx-btc-price", "approx-value" ]
     for n in needed
       if not args[n]?
         return cb new Error "missing needed argument: --#{n}"
@@ -94,8 +94,8 @@ class Main
     data.prev_addr = args["prev-addr"]
     if isNaN(parseInt((data.fee = args.fee)))
       err = new Error "need a fee in satoshi via --fee"
-    else if isNaN(parseInt(data.btc_price = args["btc-price"]))
-      err = new Error "need a BTC price via --btc-price"
+    else if isNaN(parseInt(data.approx_btc_price = args["approx-btc-price"]))
+      err = new Error "need a BTC price via --approx-btc-price"
     else if isNaN(parseInt(data.approx_value = args["approx-value"]))
       err = new Error "need an approximate value via --approx-value"
     cb err, data
@@ -122,7 +122,7 @@ class Main
   check_bitcoin_price : ({data}, cb) ->
     esc = make_esc cb, "check_bitcoin_price"
     await @req { uri : "https://blockchain.info/ticker" }, esc defer body
-    approx_price = data.btc_price
+    approx_price = data.approx_btc_price
     data.btc_price = body.USD.last
     diff = data.btc_price / approx_price
     err = null
