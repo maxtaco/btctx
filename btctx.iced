@@ -5,6 +5,46 @@ request = require 'request'
 read = require 'read'
 bitcoin = require 'bitcoinjs-lib'
 
+usage = () ->
+  console.error """
+btctx.iced --- make a BTC TX that empties one output and sends to the specified addresses.
+   You can then paste this TX in a blockchain raw transaction injector, such as: https://blockchain.info/pushtx
+
+Parameters (all required):
+
+  --prev-tx <hash>:<input>
+      The previous transaction that you want to empty. Specify both the hash and the index
+      of the output in the transaction.
+
+  --prev-addr
+      The previous address within that transaction. Should correspond exactly
+      to --prev-tx above, and the secret key that's accepted via standard input.
+
+  --send-to <addr>:[<per-mille>]
+      Send the coins to this given address. You can specify multiple sent-tos, either
+      via comma-separation, or multiple instances of the same parameter. You can
+      optionally specify a "per-mille" if you want an uneven split across the outputs.
+
+  --fee <USD>
+      Specify, as a float, the TX fee in US dollars.
+
+  --approx-btc-price <USD>
+      Specify, as a float, what you think the current BTC price is.  We'll sanity check.
+
+  --approx-value <USD>
+      Specify, as a float, the approximate value in dollars of the transaction you're looking to
+      empty out.
+
+Example usage:
+
+    iced btctx.iced \\
+      --prev-tx 3c5556c9bef2aa4a3eecccf4c83f442ff74fb91049ca6ac9e877fdef24bf0831:1 \\
+      --prev-addr 1BpJ5vHNVsxbxufCce8gQtkEYsTdAAfjQd \\
+      --send-to 1LPWQbqPYAtvuGij8W2KYoxNkUABgrDfkF \\
+      --fee 3 --approx-btc-price 7300 --approx-value 300
+
+"""
+
 class BTCAmount
 
   constructor : ( {@satoshi, @price}) ->
@@ -38,14 +78,14 @@ class SendTo
 
 class PrevTx
 
-  constructor : ({@addr, @index}) ->
+  constructor : ({@hash, @index}) ->
 
   @parse : (s, cb) ->
     v = s.split /:/
     if v.length isnt 2 or (v.length is 2 and isNaN(i = parseInt(v[1])))
       err = new Error "bad PrevTx: #{s}; need <txid>:<int>"
     else
-      ret = new PrevTx { addr : v[0], index : i }
+      ret = new PrevTx { hash : v[0], index : i }
     cb err, ret
 
 class Main
@@ -64,6 +104,7 @@ class Main
   #   --send-to 1LLmEMhqHP264Qqpv83Sf3s9hhSicJXtXK,1PUyf5STtMWNeFjvhbJz648SYume9tBkMf
   #
   # Or this:
+  #
   #   --send-to 1LLmEMhqHP264Qqpv83Sf3s9hhSicJXtXK --send-to 1PUyf5STtMWNeFjvhbJz648SYume9tBkMf
   #
   # And they mean the same thing. This will split the output across those two different addresses.
@@ -73,7 +114,7 @@ class Main
   #
   # Which will put 40% into the first wallet and 60% into the second.  By default, it's an
   # even split, but if you specify PerMilles (rather than PerCents), then they must
-  # add up to 1000.  See
+  # add up to 1000.  See sanity_check_sendto_list below:
   #
   parse_sendto : ({arg}, cb) ->
     esc = make_esc cb, "parse_sendto"
@@ -107,29 +148,36 @@ class Main
     cb err
 
   parse_args : ({argv}, cb) ->
-    esc = make_esc cb, "parse_args"
+    cb2 = (err, data) ->
+      if err? then err.parse_args = true
+      cb err, data
+    esc = make_esc cb2, "parse_args"
     data = new Data
-    args = minimist argv, { string : [ "send-to", "prev-tx", "prev-addr" ] }
+    args = minimist argv, { string : [ "send-to", "prev-tx", "prev-addr" ], boolean : [ "help"] }
     needed = [ "send-to", "prev-tx", "prev-addr", "fee", "approx-btc-price", "approx-value" ]
+    if args.help
+      err = new Error "help wanted"
+      err.usage = true
+      return cb err
     for n in needed
       if not args[n]?
-        return cb new Error "missing needed argument: --#{n}"
+        return cb2 new Error "missing needed argument: --#{n}"
     await @parse_sendto { arg : args["send-to"] }, esc defer data.send_to_list
     await @sanity_check_sendto_list { send_to_list : data.send_to_list }, esc defer()
     await PrevTx.parse args["prev-tx"], esc defer data.prev_tx
     err = null
     data.prev_addr = args["prev-addr"]
-    if isNaN(data.fee = parseInt(args.fee))
+    if isNaN(data.fee = parseFloat(args.fee))
       err = new Error "need a fee in *dollars* via --fee"
-    else if isNaN(data.approx_btc_price = parseInt(args["approx-btc-price"]))
+    else if isNaN(data.approx_btc_price = parseFloat(args["approx-btc-price"]))
       err = new Error "need a BTC price in USD/BTC via --approx-btc-price"
-    else if isNaN(data.approx_value = parseInt(args["approx-value"]))
+    else if isNaN(data.approx_value = parseFloat(args["approx-value"]))
       err = new Error "need an approximate value of this transaction in USD via --approx-value"
-    cb err, data
+    cb2 err, data
 
   check_prev_transaction : ({data}, cb) ->
     esc = make_esc cb, "check_prev_transaction"
-    await @req { uri : "https://blockchain.info/rawtx/#{data.prev_tx.addr}" }, esc defer body
+    await @req { uri : "https://blockchain.info/rawtx/#{data.prev_tx.hash}" }, esc defer body
     output = body.out[data.prev_tx.index]
     if output.addr isnt data.prev_addr
       err = new Error "got different previous address: #{output.addr}"
@@ -167,7 +215,7 @@ class Main
 
   output : ({data}, cb) ->
     tx = new bitcoin.TransactionBuilder()
-    tx.addInput(data.prev_tx.addr, data.prev_tx.index)
+    tx.addInput(data.prev_tx.hash, data.prev_tx.index)
     def_per_mille = 1000 / data.send_to_list.length
     gross = data.budget
     fee = BTCAmount.from_dollars { amt: data.fee, price: data.btc_price }
@@ -204,7 +252,11 @@ main = () ->
   await m.run process.argv[2...], defer err
   rc = 0
   if err?
-    console.error err.toString()
+    unless err.usage
+      console.error err.toString()
+      console.error ""
+    if err.parse_args or err.usage
+      usage()
     rc = 2
   process.exit rc
 
