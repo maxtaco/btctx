@@ -124,8 +124,10 @@ class Main
       err = new Error "failed to import private key #{wif}: #{e.toString()}"
     cb err
 
-  check_private_public_match : (opts, cb) ->
-    cb null
+  check_private_public_match : ({data}, cb) ->
+    if (a = data.priv_key.getAddress()) isnt (b = data.prev_addr)
+      err = new Error "private signing key (#{a}) doesn't match previous address (#{b})"
+    cb err
 
   check_bitcoin_price : ({data}, cb) ->
     esc = make_esc cb, "check_bitcoin_price"
